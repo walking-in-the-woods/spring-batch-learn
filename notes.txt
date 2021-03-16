@@ -1,0 +1,55 @@
+
+                Job
+
+    Spring Batch at the most fundamental level is a state machine.
+    A job defines the flow at processing will take through those states.
+    So each step represents a state within the state machine. So the job defines the list of states and how to
+    transition from one state to the next.
+
+                Step
+
+    A step represents an independent peace of processing that makes a job. A job may have many steps.
+    There are two different types of steps:
+
+                Tasklet
+
+    This is a single interface with a single method called execute(). And what Spring Batch does is that it runs
+    a single method within a scope of a transaction. You cam put whatever code you want within that, anything
+    outside of item based processing.
+
+                Chunk
+
+    Chunk based processing is the other type of step that is available within Spring Batch.
+    A chunk based step is item based. So when we look at a chunk based step we expect to be processed items individually.
+    Within this type of step there are 3 main components:
+
+        ItemReader
+        ItemProcessor (optional)
+        ItemWriter
+
+        Step 1      ->     Step 2      ->     Step 2
+
+    ItemReader          ItemReader          ItemReader
+    ItemProcessor       ItemProcessor       ItemProcessor
+    ItemWriter          ItemWriter          ItemWriter
+
+    First, Step1 will start and finish, then Step2 will start and finish, ...
+
+                        ItemReader          ItemProcessor       ItemWriter
+    for each chunk:         |                     |                 |
+                          read()                  |                 |
+                            |--------------->  process()            |
+                            |                     |------------>  write()
+                            |                     |                 |
+
+    The reader is going to read until a chunk limit. So typically you configure a chunk size.
+    For example, you plan to process 1000 records. Then the ItemProcessor process those 1000 records,
+    and then the writer writes them. This process is repeated until the input is exhausted.
+
+        JobLauncher ------- Job ------ Step ------|------ ItemReader
+              |______________|___________|        |------ ItemProcessor
+                             |                    |------ ItemWriter
+                         JobRepository
+
+    Spring Batch uses Map based repository or JDBC based repository.
+    If we don't specify the resource, Spring Batch will use an in-memory repository (a Map based one)
