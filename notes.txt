@@ -79,6 +79,8 @@
 
     @BeforeStep, @AfterStep, @BeforeJob, @AfterJob ... etc.
 
-            Other More Special Listeners
-
-    
+        Job                                 (The EndOfDay Job)
+         |
+       JobInstance  <-- a logical run       (The EndOfDay Job for 09/01/2015)
+         |
+       JobExecution <-- a physical run      (The first attempt at EndOfDay Job for 09/01/2015)
