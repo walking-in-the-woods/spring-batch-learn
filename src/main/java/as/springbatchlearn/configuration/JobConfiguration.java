@@ -1,21 +1,20 @@
 package as.springbatchlearn.configuration;
 
 import as.springbatchlearn.domain.Customer;
-import as.springbatchlearn.domain.CustomerFieldSetMapper;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.file.FlatFileItemReader;
-import org.springframework.batch.item.file.mapping.DefaultLineMapper;
-import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
+import org.springframework.batch.item.xml.StaxEventItemReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.oxm.xstream.XStreamMarshaller;
 
-import javax.sql.DataSource;
+import java.util.HashMap;
+import java.util.Map;
 
 @Configuration
 public class JobConfiguration {
@@ -26,26 +25,21 @@ public class JobConfiguration {
     @Autowired
     private StepBuilderFactory stepBuilderFactory;
 
-    @Autowired
-    public DataSource dataSource;
-
     @Bean
-    public FlatFileItemReader<Customer> customerItemReader() {
-        FlatFileItemReader<Customer> reader = new FlatFileItemReader<>();
+    public StaxEventItemReader<Customer> customerItemReader() {
+        XStreamMarshaller unmarshaller = new XStreamMarshaller();
 
-        reader.setLinesToSkip(1);
-        reader.setResource(new ClassPathResource("/data/customer.csv"));
+        // aliases are about what tag goes along with what class
+        Map<String, Class> aliases = new HashMap<>();
+        aliases.put("customer", Customer.class);
 
-        DefaultLineMapper<Customer> customerLineMapper = new DefaultLineMapper<>();
+        unmarshaller.setAliases(aliases);
 
-        DelimitedLineTokenizer tokenizer = new DelimitedLineTokenizer();
-        tokenizer.setNames(new String[] {"id", "firstName", "lastName", "birthdate"});
+        StaxEventItemReader<Customer> reader = new StaxEventItemReader<>();
 
-        customerLineMapper.setLineTokenizer(tokenizer);
-        customerLineMapper.setFieldSetMapper(new CustomerFieldSetMapper());
-        customerLineMapper.afterPropertiesSet();
-
-        reader.setLineMapper(customerLineMapper);
+        reader.setResource(new ClassPathResource("/data/customers.xml"));
+        reader.setFragmentRootElementName("customer"); // defines what its chunk is delineated by
+        reader.setUnmarshaller(unmarshaller); // returns a domain object
 
         return reader;
     }
