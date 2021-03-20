@@ -1,20 +1,21 @@
 package as.springbatchlearn.configuration;
 
 import as.springbatchlearn.domain.Customer;
+import as.springbatchlearn.domain.CustomerFieldMapper;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.xml.StaxEventItemReader;
+import org.springframework.batch.item.file.FlatFileItemReader;
+import org.springframework.batch.item.file.MultiResourceItemReader;
+import org.springframework.batch.item.file.mapping.DefaultLineMapper;
+import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.oxm.xstream.XStreamMarshaller;
-
-import java.util.HashMap;
-import java.util.Map;
+import org.springframework.core.io.Resource;
 
 @Configuration
 public class JobConfiguration {
@@ -25,21 +26,39 @@ public class JobConfiguration {
     @Autowired
     private StepBuilderFactory stepBuilderFactory;
 
+    @Value("classpath*:/data/*.csv")
+    private Resource[] inputFiles;
+
+    /*
+    The multiResourceItemReader() takes the list of files, and for each file, it will set the resource
+    on the FlatFileItemReader and keep call and read until it returns null.
+    When the reader returns null, it will set the next file and continue on until of the input has been exhausted.
+     */
     @Bean
-    public StaxEventItemReader<Customer> customerItemReader() {
-        XStreamMarshaller unmarshaller = new XStreamMarshaller();
+    public MultiResourceItemReader<Customer> multiResourceItemReader() {
+        MultiResourceItemReader<Customer> reader = new MultiResourceItemReader<>();
 
-        // aliases are about what tag goes along with what class
-        Map<String, Class> aliases = new HashMap<>();
-        aliases.put("customer", Customer.class);
+        // set a delegate who is doing a work of actual reading and parsing files
+        reader.setDelegate(customerItemReader());
+        reader.setResources(inputFiles); // set a collection of resources
 
-        unmarshaller.setAliases(aliases);
+        return reader;
+    }
 
-        StaxEventItemReader<Customer> reader = new StaxEventItemReader<>();
+    @Bean
+    public FlatFileItemReader<Customer> customerItemReader() {
+        FlatFileItemReader<Customer> reader = new FlatFileItemReader<>();
 
-        reader.setResource(new ClassPathResource("/data/customers.xml"));
-        reader.setFragmentRootElementName("customer"); // defines what its chunk is delineated by
-        reader.setUnmarshaller(unmarshaller); // returns a domain object
+        DefaultLineMapper<Customer> customerLineMapper = new DefaultLineMapper<>();
+
+        DelimitedLineTokenizer tokenizer = new DelimitedLineTokenizer();
+        tokenizer.setNames(new String[] {"id", "firstName", "lastName", "birthdate"});
+
+        customerLineMapper.setLineTokenizer(tokenizer);
+        customerLineMapper.setFieldSetMapper(new CustomerFieldMapper());
+        customerLineMapper.afterPropertiesSet();
+
+        reader.setLineMapper(customerLineMapper);
 
         return reader;
     }
@@ -57,7 +76,7 @@ public class JobConfiguration {
     public Step step1() {
         return stepBuilderFactory.get("step1")
                 .<Customer, Customer>chunk(10)
-                .reader(customerItemReader())
+                .reader(multiResourceItemReader())
                 .writer(customerItemWriter())
                 .build();
     }

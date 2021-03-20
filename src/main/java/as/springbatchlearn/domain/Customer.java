@@ -1,8 +1,11 @@
 package as.springbatchlearn.domain;
 
+import org.springframework.batch.item.ResourceAware;
+import org.springframework.core.io.Resource;
+
 import java.util.Date;
 
-public class Customer {
+public class Customer implements ResourceAware {
 
     private final long id;
 
@@ -11,6 +14,8 @@ public class Customer {
     private final String lastName;
 
     private final Date birthdate;
+
+    private Resource resource;
 
     public Customer(long id, String firstName, String lastName, Date birthdate) {
         this.id = id;
@@ -26,6 +31,12 @@ public class Customer {
                 ", firstName='" + firstName + '\'' +
                 ", lastName='" + lastName + '\'' +
                 ", birthdate=" + birthdate +
+                ", from " + resource.getDescription() +
                 '}';
+    }
+
+    @Override
+    public void setResource(Resource resource) {
+        this.resource = resource;
     }
 }
