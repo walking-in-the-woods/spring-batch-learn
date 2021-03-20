@@ -53,3 +53,32 @@
 
     Spring Batch uses Map based repository or JDBC based repository.
     If we don't specify the resource, Spring Batch will use an in-memory repository (a Map based one)
+
+               Listeners
+
+    Listeners functionality is implemented by implementing an appropriate interface and than adding the implementation
+    to jobs and steps. Each of the interfaces also has a Support Class (for simplification).
+
+        1. JobExecutionListener - which provides before and after job listeners
+
+        2. StepExecutionListener - which provides before and after step capabilities
+
+        3. ChunkListener - which provides before and after chunk as well as onError
+
+        4. ItemReadListener
+
+        5. ItemProcessListener
+
+        6. ItemWriteListener
+
+            (these all are provide before and after each items interaction with an appropriate component)
+
+                Listener Annotations
+
+    Annotations allows you write POJOs instead of implementing Spring Batch interfaces
+
+    @BeforeStep, @AfterStep, @BeforeJob, @AfterJob ... etc.
+
+            Other More Special Listeners
+
+    
