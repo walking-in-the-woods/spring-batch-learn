@@ -84,3 +84,35 @@
        JobInstance  <-- a logical run       (The EndOfDay Job for 09/01/2015)
          |
        JobExecution <-- a physical run      (The first attempt at EndOfDay Job for 09/01/2015)
+    _______________________________________________________
+
+    MySQL                   PostgreSQL          SQLite
+
+    TINYINT                 SMALLINT            INTEGER
+    SMALLINT                SMALLINT
+    MEDIUMINT               INTEGER
+    BIGINT                  BIGINT
+    BIT                     BIT                 INTEGER
+    _______________________________________________________
+
+    TINYINT UNSIGNED        SMALLINT            INTEGER
+    SMALLINT UNSIGNED       INTEGER
+    MEDIUMINT UNSIGNED      INTEGER
+    INT UNSIGNED            BIGINT
+    BIGINT UNSIGNED         NUMERIC(20)
+    _______________________________________________________
+
+    DOUBLE                  DOUBLE PRECISION    REAL
+    FLOAT                   REAL                REAL
+    DECIMAL                 DECIMAL             REAL
+    NUMERIC                 NUMERIC             REAL
+    _______________________________________________________
+
+    BOOLEAN                 BOOLEAN             INTEGER
+    _______________________________________________________
+
+    DATE                    DATE                TEXT
+    TIME                    TIME
+    DATETIME                TIMESTAMP
+
+    _______________________________________________________
