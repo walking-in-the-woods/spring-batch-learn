@@ -84,6 +84,28 @@
        JobInstance  <-- a logical run       (The EndOfDay Job for 09/01/2015)
          |
        JobExecution <-- a physical run      (The first attempt at EndOfDay Job for 09/01/2015)
+
+
+                Item Reader State
+
+
+    When working with chunks Spring Batch steps provides specific facilities for managing states.
+    These facilities make fault-tolerant use cases like retrying read starts possible.
+    If we look at the peaces of how state is managed with an a step, there are three key components:
+
+     1.               ItemStream    (this interface provides the facilities for a developer to get access
+                           |            to the component where the state is maintained)
+                           |
+                    ExecutionContext    (that component is the execution context. the EC at itself is
+                           |             really nothing more than an a labored Map. it contains key-value pairs.
+                           |             that map represents a state of the particular step.
+                           |             when developer writes a reader and writer, it can maintain the state
+                           |             of the component (the reader and writer))
+                           |
+                     JobRepository      (the ExecutionContext is stored in the JobRepository
+                                         the JavaRepository is the persistent data store where a state is stored
+                                         for spring batch jobs)
+
     _______________________________________________________
 
     MySQL                   PostgreSQL          SQLite
