@@ -1,8 +1,9 @@
 package as.springbatchlearn.configuration;
 
 import as.springbatchlearn.domain.Customer;
+import as.springbatchlearn.domain.CustomerLineAggregator;
 import as.springbatchlearn.domain.CustomerRowMapper;
-import as.springbatchlearn.processors.UpperCaseItemProcessor;
+import as.springbatchlearn.processors.FilteringItemProcessor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
@@ -10,12 +11,11 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.item.database.JdbcPagingItemReader;
 import org.springframework.batch.item.database.Order;
 import org.springframework.batch.item.database.support.PostgresPagingQueryProvider;
-import org.springframework.batch.item.xml.StaxEventItemWriter;
+import org.springframework.batch.item.file.FlatFileItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.oxm.xstream.XStreamMarshaller;
 
 import javax.sql.DataSource;
 import java.io.File;
@@ -55,30 +55,21 @@ public class JobConfiguration {
     }
 
     @Bean
-    public StaxEventItemWriter<Customer> customerItemWriter() throws Exception {
-        XStreamMarshaller marshaller = new XStreamMarshaller();
+    public FlatFileItemWriter<Customer> customerItemWriter() throws Exception {
+        FlatFileItemWriter<Customer> itemWriter = new FlatFileItemWriter<>();
 
-        Map<String, Class> aliases = new HashMap<>();
-        aliases.put("customer", Customer.class);
-
-        marshaller.setAliases(aliases);
-
-        StaxEventItemWriter<Customer> itemWriter = new StaxEventItemWriter<>();
-
-        itemWriter.setRootTagName("customers");
-        itemWriter.setMarshaller(marshaller);   // generates individual blocks item by item
-        String customerOutputPath = File.createTempFile("customerOutput", ".xml").getAbsolutePath();
+        itemWriter.setLineAggregator(new CustomerLineAggregator());
+        String customerOutputPath = File.createTempFile("customerOutput", ".out").getAbsolutePath();
         System.out.println(">> Output Path: " + customerOutputPath);
         itemWriter.setResource(new FileSystemResource(customerOutputPath));
-
         itemWriter.afterPropertiesSet();
 
         return itemWriter;
     }
 
     @Bean
-    public UpperCaseItemProcessor itemProcessor() {
-        return new UpperCaseItemProcessor();
+    public FilteringItemProcessor itemProcessor() {
+        return new FilteringItemProcessor();
     }
 
     @Bean
