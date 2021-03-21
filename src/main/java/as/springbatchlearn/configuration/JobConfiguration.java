@@ -1,7 +1,6 @@
 package as.springbatchlearn.configuration;
 
 import as.springbatchlearn.domain.Customer;
-import as.springbatchlearn.domain.CustomerLineAggregator;
 import as.springbatchlearn.domain.CustomerRowMapper;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
@@ -10,11 +9,12 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.item.database.JdbcPagingItemReader;
 import org.springframework.batch.item.database.Order;
 import org.springframework.batch.item.database.support.PostgresPagingQueryProvider;
-import org.springframework.batch.item.file.FlatFileItemWriter;
+import org.springframework.batch.item.xml.StaxEventItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.oxm.xstream.XStreamMarshaller;
 
 import javax.sql.DataSource;
 import java.io.File;
@@ -54,23 +54,28 @@ public class JobConfiguration {
     }
 
     @Bean
-    public FlatFileItemWriter<Customer> customerItemWriter() throws Exception {
-        FlatFileItemWriter<Customer> itemWriter = new FlatFileItemWriter<>();
+    public StaxEventItemWriter<Customer> customerItemWriter() throws Exception {
+        XStreamMarshaller marshaller = new XStreamMarshaller();
 
-        /*  The line aggregator is an abstraction that allows us to determine how an object is mapped to
-            a string that we've written as a line in our file.
-            The PassThroughLineAggregator calls toString() on each item that is passed in
-        */
-        //itemWriter.setLineAggregator(new PassThroughLineAggregator<>());  // convenient variant (toString())
-        itemWriter.setLineAggregator(new CustomerLineAggregator());         // custom variant (JSON)
-        String customerOutputPath = File.createTempFile("customerOutput", ".out").getAbsolutePath();
+        Map<String, Class> aliases = new HashMap<>();
+        aliases.put("customer", Customer.class);
+
+        marshaller.setAliases(aliases);
+
+        StaxEventItemWriter<Customer> itemWriter = new StaxEventItemWriter<>();
+
+        itemWriter.setRootTagName("customers");
+        itemWriter.setMarshaller(marshaller);   // generates individual blocks item by item
+        String customerOutputPath = File.createTempFile("customerOutput", ".xml").getAbsolutePath();
         System.out.println(">> Output Path: " + customerOutputPath);
         itemWriter.setResource(new FileSystemResource(customerOutputPath));
+
         itemWriter.afterPropertiesSet();
 
         return itemWriter;
     }
 
+    //  For performance reason, it's a good practice to make the chunk size and the fetch size equal
     @Bean
     public Step step1() throws Exception {
         return stepBuilderFactory.get("step1")
