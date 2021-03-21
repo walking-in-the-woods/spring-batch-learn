@@ -1,18 +1,22 @@
 package as.springbatchlearn.configuration;
 
+import as.springbatchlearn.domain.Customer;
+import as.springbatchlearn.domain.CustomerFieldSetMapper;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.core.configuration.annotation.StepScope;
-import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.support.ListItemReader;
+import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider;
+import org.springframework.batch.item.database.JdbcBatchItemWriter;
+import org.springframework.batch.item.file.FlatFileItemReader;
+import org.springframework.batch.item.file.mapping.DefaultLineMapper;
+import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ClassPathResource;
 
-import java.util.ArrayList;
-import java.util.List;
+import javax.sql.DataSource;
 
 @Configuration
 public class JobConfiguration {
@@ -23,29 +27,50 @@ public class JobConfiguration {
     @Autowired
     private StepBuilderFactory stepBuilderFactory;
 
+    @Autowired
+    public DataSource dataSource;
+
     @Bean
-    @StepScope
-    public ListItemReader<String> itemReader() {
-        List<String> items = new ArrayList<>(100);
+    public FlatFileItemReader<Customer> customerItemReader() {
+        FlatFileItemReader<Customer> reader = new FlatFileItemReader<>();
 
-        for(int i = 1; i <= 100; i++) {
-            items.add(String.valueOf(i));
-        }
+        reader.setLinesToSkip(1);
+        reader.setResource(new ClassPathResource("/data/customer.csv"));
 
-        return new ListItemReader<>(items);
+        DefaultLineMapper<Customer> customerLineMapper = new DefaultLineMapper<>();
+
+        DelimitedLineTokenizer tokenizer = new DelimitedLineTokenizer();
+        tokenizer.setNames(new String[] {"id", "firstName", "lastName", "birthdate"});
+
+        customerLineMapper.setLineTokenizer(tokenizer);
+        customerLineMapper.setFieldSetMapper(new CustomerFieldSetMapper());
+        customerLineMapper.afterPropertiesSet();
+
+        reader.setLineMapper(customerLineMapper);
+
+        return reader;
     }
 
     @Bean
-    public ItemWriter itemWriter() {
-        return new SysOutItemWriter();
+    public JdbcBatchItemWriter<Customer> customerItemWriter() {
+        JdbcBatchItemWriter<Customer> itemWriter = new JdbcBatchItemWriter<>();
+
+        // Execute "TRUNCATE TABLE CUSTOMER" query in the db first (if exists)
+        itemWriter.setDataSource(this.dataSource);
+        itemWriter.setSql("INSERT INTO CUSTOMER VALUES (:id, :firstName, :lastName, :birthdate)");
+        itemWriter.setItemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>());
+        itemWriter.afterPropertiesSet();
+
+        return itemWriter;
     }
 
     @Bean
     public Step step1() {
         return stepBuilderFactory.get("step1")
-                .<String, String>chunk(10)
-                .reader(itemReader())
-                .writer(itemWriter())
+                .<Customer, Customer>chunk(10)
+                .reader(customerItemReader())
+                .writer(customerItemWriter())
+                .allowStartIfComplete(true)
                 .build();
     }
 
