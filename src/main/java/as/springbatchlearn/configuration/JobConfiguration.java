@@ -1,8 +1,8 @@
 package as.springbatchlearn.configuration;
 
 import as.springbatchlearn.domain.Customer;
-import as.springbatchlearn.domain.CustomerLineAggregator;
 import as.springbatchlearn.domain.CustomerRowMapper;
+import as.springbatchlearn.processors.UpperCaseItemProcessor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
@@ -10,8 +10,6 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.item.database.JdbcPagingItemReader;
 import org.springframework.batch.item.database.Order;
 import org.springframework.batch.item.database.support.PostgresPagingQueryProvider;
-import org.springframework.batch.item.file.FlatFileItemWriter;
-import org.springframework.batch.item.support.ClassifierCompositeItemWriter;
 import org.springframework.batch.item.xml.StaxEventItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -57,20 +55,7 @@ public class JobConfiguration {
     }
 
     @Bean
-    public FlatFileItemWriter<Customer> jsonItemWriter() throws Exception {
-        FlatFileItemWriter<Customer> itemWriter = new FlatFileItemWriter<>();
-
-        itemWriter.setLineAggregator(new CustomerLineAggregator());
-        String customerOutputPath = File.createTempFile("customerOutput", ".out").getAbsolutePath();
-        System.out.println(">> Output Path: " + customerOutputPath);
-        itemWriter.setResource(new FileSystemResource(customerOutputPath));
-        itemWriter.afterPropertiesSet();
-
-        return itemWriter;
-    }
-
-    @Bean
-    public StaxEventItemWriter<Customer> xmlItemWriter() throws Exception {
+    public StaxEventItemWriter<Customer> customerItemWriter() throws Exception {
         XStreamMarshaller marshaller = new XStreamMarshaller();
 
         Map<String, Class> aliases = new HashMap<>();
@@ -91,33 +76,9 @@ public class JobConfiguration {
         return itemWriter;
     }
 
-    // comment this bean if you use ClassifierCompositeItemWriter
-    // CompositeItemWriter implements item stream
-//    @Bean
-//    public CompositeItemWriter<Customer> itemWriter() throws Exception {
-//        List<ItemWriter<? super Customer>> writers = new ArrayList<>(2);
-//
-//        writers.add(xmlItemWriter());
-//        writers.add(jsonItemWriter());
-//
-//        CompositeItemWriter<Customer> itemWriter = new CompositeItemWriter<>();
-//
-//        itemWriter.setDelegates(writers);
-//        itemWriter.afterPropertiesSet();
-//
-//        return itemWriter;
-//    }
-
-    // comment this bean if you use CompositeItemWriter
-    // CompositeItemWriter does not implements item stream, so we need to add streams to the step
     @Bean
-    public ClassifierCompositeItemWriter<Customer> itemWriter() throws Exception {
-        ClassifierCompositeItemWriter<Customer> itemWriter = new ClassifierCompositeItemWriter<>();
-
-        // even goes to xml, odd goes to json
-        itemWriter.setClassifier(new CustomerClassifier(xmlItemWriter(), jsonItemWriter()));
-
-        return itemWriter;
+    public UpperCaseItemProcessor itemProcessor() {
+        return new UpperCaseItemProcessor();
     }
 
     @Bean
@@ -125,9 +86,8 @@ public class JobConfiguration {
         return stepBuilderFactory.get("step1")
                 .<Customer, Customer>chunk(10)
                 .reader(pagingItemReader())
-                .writer(itemWriter())
-                .stream(xmlItemWriter())  // comment this line if you use CompositeItemWriter
-                .stream(jsonItemWriter()) // comment this line if you use CompositeItemWriter
+                .processor(itemProcessor())
+                .writer(customerItemWriter())
                 .allowStartIfComplete(true)
                 .build();
     }
