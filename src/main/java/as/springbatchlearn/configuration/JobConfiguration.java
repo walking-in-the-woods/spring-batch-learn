@@ -1,23 +1,31 @@
 package as.springbatchlearn.configuration;
 
 /*
-    First time step1 will throw a RuntimeException. The step will be done after restarting the application
+    Run in a command line:
+
+    mvn clean install
+
+    java -jar target/spring-batch-learn-0.0.1-SNAPSHOT.jar -retry=processor
+
  */
 
+import as.springbatchlearn.components.CustomRetryableException;
+import as.springbatchlearn.components.RetryItemProcessor;
+import as.springbatchlearn.components.RetryItemWriter;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
-import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
-import org.springframework.batch.core.scope.context.ChunkContext;
-import org.springframework.batch.core.step.tasklet.Tasklet;
-import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
 
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 @Configuration
 public class JobConfiguration {
@@ -30,36 +38,49 @@ public class JobConfiguration {
 
     @Bean
     @StepScope
-    public Tasklet restartTasklet() {
-        return new Tasklet() {
-            @Override
-            public RepeatStatus execute(StepContribution stepContribution,
-                                        ChunkContext chunkContext) throws Exception {
-                Map<String, Object> stepExecutionContext = chunkContext.getStepContext().getStepExecutionContext();
+    public ListItemReader reader() {
 
-                if(stepExecutionContext.containsKey("ran")) {
-                    System.out.println("This time we'll let it go.");
-                    return RepeatStatus.FINISHED;
-                } else {
-                    System.out.println("I don't think so...");
-                    chunkContext.getStepContext().getStepExecution().getExecutionContext().put("ran", true);
-                    throw new RuntimeException("Not this time...");
-                }
-            }
-        };
+        List<String> items = new ArrayList<>();
+
+        for(int i = 0; i < 100; i++) {
+            items.add(String.valueOf(i));
+        }
+
+        ListItemReader<String> reader = new ListItemReader<>(items);
+
+        return reader;
+    }
+
+    @Bean
+    @StepScope
+    public RetryItemProcessor processor(@Value("#{jobParameters['retry']}") String retry) {
+        RetryItemProcessor processor = new RetryItemProcessor();
+
+        processor.setRetry(StringUtils.hasText(retry) && retry.equalsIgnoreCase("processor"));
+
+        return processor;
+    }
+
+    @Bean
+    @StepScope
+    public RetryItemWriter writer(@Value("#{jobParameters['retry']}") String retry) {
+        RetryItemWriter writer = new RetryItemWriter();
+
+        writer.setRetry(StringUtils.hasText(retry) && retry.equalsIgnoreCase("writer"));
+
+        return writer;
     }
 
     @Bean
     public Step step1() throws Exception {
         return stepBuilderFactory.get("step1")
-                .tasklet(restartTasklet())
-                .build();
-    }
-
-    @Bean
-    public Step step2() throws Exception {
-        return stepBuilderFactory.get("step2")
-                .tasklet(restartTasklet())
+                .<String, String>chunk(10)
+                .reader(reader())
+                .processor(processor(null))
+                .writer(writer(null))
+                .faultTolerant()
+                .retry(CustomRetryableException.class)
+                .retryLimit(15)
                 .build();
     }
 
@@ -67,7 +88,6 @@ public class JobConfiguration {
     public Job job() throws Exception {
         return jobBuilderFactory.get("job")
                 .start(step1())
-                .next(step2())
                 .build();
     }
 }
