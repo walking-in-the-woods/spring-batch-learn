@@ -5,13 +5,13 @@ package as.springbatchlearn.configuration;
 
     mvn clean install
 
-    java -jar target/spring-batch-learn-0.0.1-SNAPSHOT.jar -retry=processor
+    java -jar target/spring-batch-learn-0.0.1-SNAPSHOT.jar -skip=processor
 
  */
 
 import as.springbatchlearn.components.CustomRetryableException;
-import as.springbatchlearn.components.RetryItemProcessor;
-import as.springbatchlearn.components.RetryItemWriter;
+import as.springbatchlearn.components.SkipItemProcessor;
+import as.springbatchlearn.components.SkipItemWriter;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
@@ -46,27 +46,25 @@ public class JobConfiguration {
             items.add(String.valueOf(i));
         }
 
-        ListItemReader<String> reader = new ListItemReader<>(items);
-
-        return reader;
+        return new ListItemReader<>(items);
     }
 
     @Bean
     @StepScope
-    public RetryItemProcessor processor(@Value("#{jobParameters['retry']}") String retry) {
-        RetryItemProcessor processor = new RetryItemProcessor();
+    public SkipItemProcessor processor(@Value("#{jobParameters['skip']}") String skip) {
+        SkipItemProcessor processor = new SkipItemProcessor();
 
-        processor.setRetry(StringUtils.hasText(retry) && retry.equalsIgnoreCase("processor"));
+        processor.setSkip(StringUtils.hasText(skip) && skip.equalsIgnoreCase("processor"));
 
         return processor;
     }
 
     @Bean
     @StepScope
-    public RetryItemWriter writer(@Value("#{jobParameters['retry']}") String retry) {
-        RetryItemWriter writer = new RetryItemWriter();
+    public SkipItemWriter writer(@Value("#{jobParameters['skip']}") String skip) {
+        SkipItemWriter writer = new SkipItemWriter();
 
-        writer.setRetry(StringUtils.hasText(retry) && retry.equalsIgnoreCase("writer"));
+        writer.setSkip(StringUtils.hasText(skip) && skip.equalsIgnoreCase("writer"));
 
         return writer;
     }
@@ -79,8 +77,8 @@ public class JobConfiguration {
                 .processor(processor(null))
                 .writer(writer(null))
                 .faultTolerant()
-                .retry(CustomRetryableException.class)
-                .retryLimit(15)
+                .skip(CustomRetryableException.class)
+                .skipLimit(15)
                 .build();
     }
 
