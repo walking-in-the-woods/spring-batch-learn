@@ -3,7 +3,7 @@ package as.springbatchlearn.configuration;
 import as.springbatchlearn.domain.Customer;
 import as.springbatchlearn.domain.CustomerLineAggregator;
 import as.springbatchlearn.domain.CustomerRowMapper;
-import as.springbatchlearn.processors.FilteringItemProcessor;
+import as.springbatchlearn.domain.CustomerValidator;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
@@ -12,6 +12,7 @@ import org.springframework.batch.item.database.JdbcPagingItemReader;
 import org.springframework.batch.item.database.Order;
 import org.springframework.batch.item.database.support.PostgresPagingQueryProvider;
 import org.springframework.batch.item.file.FlatFileItemWriter;
+import org.springframework.batch.item.validator.ValidatingItemProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -68,10 +69,16 @@ public class JobConfiguration {
     }
 
     @Bean
-    public FilteringItemProcessor itemProcessor() {
-        return new FilteringItemProcessor();
+    public ValidatingItemProcessor<Customer> itemProcessor() {
+        ValidatingItemProcessor<Customer> customerValidatingItemProcessor =
+                new ValidatingItemProcessor<>(new CustomerValidator());
+
+        customerValidatingItemProcessor.setFilter(true);
+
+        return customerValidatingItemProcessor;
     }
 
+    // truncate spring boot tables if you get an ItemWriter exception "the file size is less than in previous commit"
     @Bean
     public Step step1() throws Exception {
         return stepBuilderFactory.get("step1")
