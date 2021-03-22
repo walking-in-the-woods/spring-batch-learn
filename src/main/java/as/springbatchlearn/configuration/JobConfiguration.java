@@ -1,26 +1,22 @@
 package as.springbatchlearn.configuration;
 
-import as.springbatchlearn.domain.*;
+/*
+    First time step1 will throw a RuntimeException. The step will be done after restarting the application
+ */
+
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.database.JdbcPagingItemReader;
-import org.springframework.batch.item.database.Order;
-import org.springframework.batch.item.database.support.PostgresPagingQueryProvider;
-import org.springframework.batch.item.file.FlatFileItemWriter;
-import org.springframework.batch.item.support.CompositeItemProcessor;
+import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.core.scope.context.ChunkContext;
+import org.springframework.batch.core.step.tasklet.Tasklet;
+import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.FileSystemResource;
 
-import javax.sql.DataSource;
-import java.io.File;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Configuration
@@ -32,66 +28,38 @@ public class JobConfiguration {
     @Autowired
     private StepBuilderFactory stepBuilderFactory;
 
-    @Autowired
-    public DataSource dataSource;
-
     @Bean
-    public JdbcPagingItemReader<Customer> pagingItemReader() {
-        JdbcPagingItemReader<Customer> reader = new JdbcPagingItemReader<>();
+    @StepScope
+    public Tasklet restartTasklet() {
+        return new Tasklet() {
+            @Override
+            public RepeatStatus execute(StepContribution stepContribution,
+                                        ChunkContext chunkContext) throws Exception {
+                Map<String, Object> stepExecutionContext = chunkContext.getStepContext().getStepExecutionContext();
 
-        reader.setDataSource(this.dataSource);
-        reader.setFetchSize(10);
-        reader.setRowMapper(new CustomerRowMapper());
-
-        PostgresPagingQueryProvider queryProvider = new PostgresPagingQueryProvider();
-        queryProvider.setSelectClause("id, firstName, lastName, birthdate");
-        queryProvider.setFromClause("from customer");
-
-        Map<String, Order> sortKeys = new HashMap<>(1);
-        sortKeys.put("id", Order.ASCENDING);
-        queryProvider.setSortKeys(sortKeys);
-        reader.setQueryProvider(queryProvider);
-
-        return reader;
-    }
-
-    @Bean
-    public FlatFileItemWriter<Customer> customerItemWriter() throws Exception {
-        FlatFileItemWriter<Customer> itemWriter = new FlatFileItemWriter<>();
-
-        itemWriter.setLineAggregator(new CustomerLineAggregator());
-        String customerOutputPath = File.createTempFile("customerOutput", ".out").getAbsolutePath();
-        System.out.println(">> Output Path: " + customerOutputPath);
-        itemWriter.setResource(new FileSystemResource(customerOutputPath));
-        itemWriter.afterPropertiesSet();
-
-        return itemWriter;
-    }
-
-    @Bean
-    public CompositeItemProcessor<Customer, Customer> itemProcessor() throws Exception {
-        List<ItemProcessor<Customer, Customer>> delegates = new ArrayList<>(2);
-
-        delegates.add(new FilteringItemProcessor());
-        delegates.add(new UpperCaseItemProcessor());
-
-        CompositeItemProcessor<Customer, Customer> compositeItemProcessor =
-                new CompositeItemProcessor<>();
-
-        compositeItemProcessor.setDelegates(delegates);
-        compositeItemProcessor.afterPropertiesSet();
-
-        return compositeItemProcessor;
+                if(stepExecutionContext.containsKey("ran")) {
+                    System.out.println("This time we'll let it go.");
+                    return RepeatStatus.FINISHED;
+                } else {
+                    System.out.println("I don't think so...");
+                    chunkContext.getStepContext().getStepExecution().getExecutionContext().put("ran", true);
+                    throw new RuntimeException("Not this time...");
+                }
+            }
+        };
     }
 
     @Bean
     public Step step1() throws Exception {
         return stepBuilderFactory.get("step1")
-                .<Customer, Customer>chunk(10)
-                .reader(pagingItemReader())
-                .processor(itemProcessor())
-                .writer(customerItemWriter())
-                .allowStartIfComplete(true)
+                .tasklet(restartTasklet())
+                .build();
+    }
+
+    @Bean
+    public Step step2() throws Exception {
+        return stepBuilderFactory.get("step2")
+                .tasklet(restartTasklet())
                 .build();
     }
 
@@ -99,6 +67,7 @@ public class JobConfiguration {
     public Job job() throws Exception {
         return jobBuilderFactory.get("job")
                 .start(step1())
+                .next(step2())
                 .build();
     }
 }
