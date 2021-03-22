@@ -1,15 +1,7 @@
 package as.springbatchlearn.configuration;
 
-/*
-    Run in a command line:
-
-    mvn clean install
-
-    java -jar target/spring-batch-learn-0.0.1-SNAPSHOT.jar -skip=processor
-
- */
-
-import as.springbatchlearn.components.CustomRetryableException;
+import as.springbatchlearn.components.CustomException;
+import as.springbatchlearn.components.CustomSkipListener;
 import as.springbatchlearn.components.SkipItemProcessor;
 import as.springbatchlearn.components.SkipItemWriter;
 import org.springframework.batch.core.Job;
@@ -19,10 +11,8 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,22 +41,14 @@ public class JobConfiguration {
 
     @Bean
     @StepScope
-    public SkipItemProcessor processor(@Value("#{jobParameters['skip']}") String skip) {
-        SkipItemProcessor processor = new SkipItemProcessor();
-
-        processor.setSkip(StringUtils.hasText(skip) && skip.equalsIgnoreCase("processor"));
-
-        return processor;
+    public SkipItemProcessor processor() {
+        return new SkipItemProcessor();
     }
 
     @Bean
     @StepScope
-    public SkipItemWriter writer(@Value("#{jobParameters['skip']}") String skip) {
-        SkipItemWriter writer = new SkipItemWriter();
-
-        writer.setSkip(StringUtils.hasText(skip) && skip.equalsIgnoreCase("writer"));
-
-        return writer;
+    public SkipItemWriter writer() {
+        return new SkipItemWriter();
     }
 
     @Bean
@@ -74,11 +56,12 @@ public class JobConfiguration {
         return stepBuilderFactory.get("step1")
                 .<String, String>chunk(10)
                 .reader(reader())
-                .processor(processor(null))
-                .writer(writer(null))
+                .processor(processor())
+                .writer(writer())
                 .faultTolerant()
-                .skip(CustomRetryableException.class)
+                .skip(CustomException.class)
                 .skipLimit(15)
+                .listener(new CustomSkipListener())
                 .build();
     }
 
