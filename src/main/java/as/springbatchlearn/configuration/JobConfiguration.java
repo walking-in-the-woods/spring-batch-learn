@@ -1,18 +1,16 @@
 package as.springbatchlearn.configuration;
 
-import as.springbatchlearn.domain.Customer;
-import as.springbatchlearn.domain.CustomerLineAggregator;
-import as.springbatchlearn.domain.CustomerRowMapper;
-import as.springbatchlearn.domain.CustomerValidator;
+import as.springbatchlearn.domain.*;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.database.JdbcPagingItemReader;
 import org.springframework.batch.item.database.Order;
 import org.springframework.batch.item.database.support.PostgresPagingQueryProvider;
 import org.springframework.batch.item.file.FlatFileItemWriter;
-import org.springframework.batch.item.validator.ValidatingItemProcessor;
+import org.springframework.batch.item.support.CompositeItemProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,7 +18,9 @@ import org.springframework.core.io.FileSystemResource;
 
 import javax.sql.DataSource;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Configuration
@@ -69,16 +69,21 @@ public class JobConfiguration {
     }
 
     @Bean
-    public ValidatingItemProcessor<Customer> itemProcessor() {
-        ValidatingItemProcessor<Customer> customerValidatingItemProcessor =
-                new ValidatingItemProcessor<>(new CustomerValidator());
+    public CompositeItemProcessor<Customer, Customer> itemProcessor() throws Exception {
+        List<ItemProcessor<Customer, Customer>> delegates = new ArrayList<>(2);
 
-        customerValidatingItemProcessor.setFilter(true);
+        delegates.add(new FilteringItemProcessor());
+        delegates.add(new UpperCaseItemProcessor());
 
-        return customerValidatingItemProcessor;
+        CompositeItemProcessor<Customer, Customer> compositeItemProcessor =
+                new CompositeItemProcessor<>();
+
+        compositeItemProcessor.setDelegates(delegates);
+        compositeItemProcessor.afterPropertiesSet();
+
+        return compositeItemProcessor;
     }
 
-    // truncate spring boot tables if you get an ItemWriter exception "the file size is less than in previous commit"
     @Bean
     public Step step1() throws Exception {
         return stepBuilderFactory.get("step1")
