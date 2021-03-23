@@ -6,6 +6,9 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.integration.async.AsyncItemProcessor;
+import org.springframework.batch.integration.async.AsyncItemWriter;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.JdbcPagingItemReader;
@@ -19,6 +22,7 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import javax.sql.DataSource;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 @Configuration
 public class JobConfiguration {
@@ -54,6 +58,32 @@ public class JobConfiguration {
         return reader;
     }
 
+    @Bean   // here we implement our processing logic
+    public ItemProcessor itemProcessor() {
+        return new ItemProcessor<Customer, Customer>() {
+            @Override
+            public Customer process(Customer item) throws Exception {
+                Thread.sleep(new Random().nextInt(10));
+                return new Customer(item.getId(),
+                        item.getFirstName().toUpperCase(),
+                        item.getLastName().toUpperCase(),
+                        item.getBirthdate());
+            }
+        };
+    }
+
+    @Bean   // and here we wrap our itemProcessor in spring batch AsyncItemProcessor
+    public AsyncItemProcessor asyncItemProcessor() throws Exception {
+        AsyncItemProcessor<Customer, Customer> asyncItemProcessor = new AsyncItemProcessor<>();
+
+        asyncItemProcessor.setDelegate(itemProcessor());
+        asyncItemProcessor.setTaskExecutor(new SimpleAsyncTaskExecutor()); // not recommended for production
+        asyncItemProcessor.afterPropertiesSet();    // SimpleAsyncTaskExecutor launches a new thread for every new task
+                                                    // it's much better to use ThreadPoolTaskExecutor
+
+        return asyncItemProcessor;
+    }
+
     @Bean
     public JdbcBatchItemWriter<Customer> customerItemWriter() {
         JdbcBatchItemWriter<Customer> itemWriter = new JdbcBatchItemWriter<>();
@@ -64,16 +94,25 @@ public class JobConfiguration {
         itemWriter.afterPropertiesSet();
 
         return itemWriter;
-     }
+    }
+
+    @Bean
+    public AsyncItemWriter asyncItemWriter() throws Exception {
+        AsyncItemWriter<Customer> asyncItemWriter = new AsyncItemWriter<>();
+
+        asyncItemWriter.setDelegate(customerItemWriter());
+        asyncItemWriter.afterPropertiesSet();
+
+        return asyncItemWriter;
+    }
 
     @Bean
     public Step step1() throws Exception {
         return stepBuilderFactory.get("step1")
-                .<Customer, Customer>chunk(1000)
+                .chunk(1000)
                 .reader(pagingItemReader())
-                .writer(customerItemWriter())
-                .taskExecutor(new SimpleAsyncTaskExecutor()) // not recommended to use in production environment
-                //.allowStartIfComplete(true)
+                .processor(asyncItemProcessor())
+                .writer(asyncItemWriter())
                 .build();
     }
 
