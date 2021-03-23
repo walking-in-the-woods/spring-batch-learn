@@ -93,7 +93,7 @@
     These facilities make fault-tolerant use cases like retrying read starts possible.
     If we look at the peaces of how state is managed with an a step, there are three key components:
 
-     1.               ItemStream    (this interface provides the facilities for a developer to get access
+    1.               ItemStream    (this interface provides the facilities for a developer to get access
                            |            to the component where the state is maintained)
                            |
                     ExecutionContext    (that component is the execution context. the EC at itself is
@@ -105,6 +105,34 @@
                      JobRepository      (the ExecutionContext is stored in the JobRepository
                                          the JavaRepository is the persistent data store where a state is stored
                                          for spring batch jobs)
+
+                Scaling Spring Batch
+
+    1.  Multi-Threaded Step
+
+            Each chunk is processed on its own thread
+            (for example, we process 4000 records by one Step on 4 threads with chunk size 1000)
+
+    2.  Asynch ItemProcessor / Asynch ItemWriter
+
+            ItemProcessor returns a Future (the actual processor logic itself is executed on another thread
+            and when that thread returns (future returns) the ItemWriter Unwraps the Future and persists the data.
+            this allows the scalability of the processor logic within a single JVM.
+
+    3.  Partitioning
+
+            We are Dividing the data into partitions, and those partitions are processed in parallel.
+            (we divide a 1000000 records to partitions with 1000 records)
+
+    4.  Remote Chunking
+
+            Here the Processing and Writing phases of the step occur in a Remote Slave.
+            Instead of partition to aspect, we have a slave doing the reading, the processing and the writing.
+            For most chunking the read is done by the master. The data then is passed to the slave where
+            the processing and writing occur.
+
+            One important thing to know with partitioning when you have the master/slave configuration,
+            the master is only sending over a description of what a process to the slaves.
 
     _______________________________________________________
 
